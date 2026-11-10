@@ -28,15 +28,17 @@ Phụ thuộc: T005.
 
 Phụ thuộc: T010–T014.
 
-- [ ] T020 Bổ sung cấu hình AI_MODE/timeout/limiter, validate env; mock không cần key/model, gemini cần cả hai.
-- [ ] T021 Tạo schema request: strict object; trim; đếm Unicode code point; text 1–5000, term 1–100, context 0–1000; optional chỉ áp dụng khi thiếu, không áp dụng null.
-- [ ] T022 Tạo ai.routes.js cho ba POST; limiter → Content-Type → JSON parser 100 KiB → validation, sau CORS. Không parse body của route lạ.
-- [ ] T023 Viết mock service và controllers: đúng data schema, meta.mode=mock; level mặc định basic; term/level phản ánh input chuẩn hóa.
-- [ ] T024 Cấu hình limiter dùng chung 10/IP/60 giây, không áp health/OPTIONS; 429 JSON và Retry-After. Trust proxy false ở local.
-- [ ] T025 Hoàn thiện errors 400/403/404/413/415/429/500 theo hợp đồng.
-- [ ] T026 Thêm node:test + supertest và npm test; tests happy path, validation/Unicode/biên, parser, CORS và limiter. Dùng fake/injection, không key thật.
+- [x] T020 Bổ sung cấu hình AI_MODE/timeout/limiter, validate env; mock không cần key/model, gemini cần cả hai.
+- [x] T021 Tạo schema request: strict object; trim; đếm Unicode code point; text 1–5000, term 1–100, context 0–1000; optional chỉ áp dụng khi thiếu, không áp dụng null.
+- [x] T022 Tạo ai.routes.js cho ba POST; limiter → Content-Type → JSON parser 100 KiB → validation, sau CORS. Không parse body của route lạ.
+- [x] T023 Viết mock service và controllers: đúng data schema, meta.mode=mock; level mặc định basic; term/level phản ánh input chuẩn hóa.
+- [x] T024 Cấu hình limiter dùng chung 10/IP/60 giây, không áp health/OPTIONS; 429 JSON và Retry-After. Trust proxy false ở local.
+- [x] T025 Hoàn thiện errors 400/403/404/413/415/429/500 theo hợp đồng.
+- [x] T026 Thêm node:test + supertest và npm test; tests happy path, validation/Unicode/biên, parser, CORS và limiter. Dùng fake/injection, không key thật.
 
 Điều kiện qua giai đoạn: FE gọi được ba API bằng mock; tests pass; không âm thầm trả mock ở chế độ gemini.
+
+Bằng chứng: npm test → 38/38 pass; smoke test GET /api/health → 200.
 
 ## Giai đoạn 3 — Gemini và chất lượng nội dung
 

@@ -1,5 +1,7 @@
 const { port } = require("./config/env");
-const app = require("./app");
+const { createApp } = require("./app");
+
+const app = createApp();
 
 const server = app.listen(port, () => {
     console.log(`Backend đang chạy tại http://localhost:${port}`);

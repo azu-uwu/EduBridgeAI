@@ -37,3 +37,11 @@ Hướng dẫn trực tiếp mới nhất của người dùng ưu tiên cao nh�
 Từ backend/: npm ci khi cài theo lockfile; npm test sau khi suite được tạo; npm run dev hoặc npm start để smoke test GET /api/health. Nếu scripts chưa có, tạo theo plan thay vì tuyên bố đã chạy. Kiểm thử tự động không gọi Gemini thật. Muốn kết luận chất lượng AI thật phải thực hiện T038 riêng.
 
 Cập nhật tasks.md dựa trên bằng chứng. Báo ngắn gọn: đã đổi gì, task nào hoàn thành, đã kiểm tra gì và phần nào chưa làm. Không dùng output mẫu làm bằng chứng gọi Gemini thật.
+
+## Thư mục chạy lệnh backend
+
+- Dự án Node.js nằm trong backend/.
+- Mọi lệnh npm phải chạy với working directory là backend/.
+- Kiểm tra thư mục hiện tại và backend/package.json trước khi cài dependency.
+- Không chạy npm init hoặc tạo package.json, package-lock.json,
+  node_modules ở thư mục gốc repository.
