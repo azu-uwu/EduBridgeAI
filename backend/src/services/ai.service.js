@@ -1,41 +1,68 @@
 const AppError = require("../utils/app-error");
 const mockService = require("./mock.service");
+const geminiService = require("./gemini.service");
 const { aiMode } = require("../config/env");
+const {
+    simplifyOutputSchema,
+    explainOutputSchema,
+    summarizeOutputSchema,
+} = require("../schemas/ai.response.schemas");
 
-// Chọn chế độ và trả mock hoặc báo lỗi khi chưa tích hợp provider.
-// Chưa gọi Gemini thật ở giai đoạn này.
-
-function simplify(text, level) {
-    if (aiMode === "gemini") {
+function validateOutput(schema, parsed) {
+    try {
+        return schema.parse(parsed);
+    } catch {
         throw new AppError(
-            503,
-            "AI_UNAVAILABLE",
-            "Chế độ gemini chưa được tích hợp tại giai đoạn này."
+            502,
+            "AI_INVALID_RESPONSE",
+            "Kết quả từ AI không đúng định dạng mong đợi."
         );
     }
-    return mockService.simplify(text, level);
 }
 
-function explain(term, context) {
+async function simplify(text, level) {
     if (aiMode === "gemini") {
-        throw new AppError(
-            503,
-            "AI_UNAVAILABLE",
-            "Chế độ gemini chưa được tích hợp tại giai đoạn này."
-        );
+        const parsed = await geminiService.simplify(text, level);
+        const validated = validateOutput(simplifyOutputSchema, parsed);
+        return {
+            data: { simplifiedText: validated.simplifiedText, level },
+            mode: "gemini",
+        };
     }
-    return mockService.explain(term, context);
+    return {
+        data: mockService.simplify(text, level),
+        mode: "mock",
+    };
 }
 
-function summarize(text) {
+async function explain(term, context) {
     if (aiMode === "gemini") {
-        throw new AppError(
-            503,
-            "AI_UNAVAILABLE",
-            "Chế độ gemini chưa được tích hợp tại giai đoạn này."
-        );
+        const parsed = await geminiService.explain(term, context);
+        const validated = validateOutput(explainOutputSchema, parsed);
+        return {
+            data: { term, meaning: validated.meaning, examples: validated.examples },
+            mode: "gemini",
+        };
     }
-    return mockService.summarize(text);
+    return {
+        data: mockService.explain(term, context),
+        mode: "mock",
+    };
+}
+
+async function summarize(text) {
+    if (aiMode === "gemini") {
+        const parsed = await geminiService.summarize(text);
+        const validated = validateOutput(summarizeOutputSchema, parsed);
+        return {
+            data: { summary: validated.summary, keyPoints: validated.keyPoints },
+            mode: "gemini",
+        };
+    }
+    return {
+        data: mockService.summarize(text),
+        mode: "mock",
+    };
 }
 
 module.exports = {

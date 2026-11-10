@@ -1,42 +1,42 @@
 const aiService = require("../services/ai.service");
 
-function simplify(req, res) {
+async function simplify(req, res) {
     const { text, level } = req.body;
-    const result = aiService.simplify(text, level);
+    const { data, mode } = await aiService.simplify(text, level);
     res.status(200).json({
         success: true,
         data: {
-            simplifiedText: result.simplifiedText,
-            level: result.level,
+            simplifiedText: data.simplifiedText,
+            level,
         },
-        meta: { mode: "mock" },
+        meta: { mode },
     });
 }
 
-function explain(req, res) {
+async function explain(req, res) {
     const { term, context } = req.body;
-    const result = aiService.explain(term, context);
+    const { data, mode } = await aiService.explain(term, context);
     res.status(200).json({
         success: true,
         data: {
-            term: result.term,
-            meaning: result.meaning,
-            examples: result.examples,
+            term: data.term,
+            meaning: data.meaning,
+            examples: data.examples,
         },
-        meta: { mode: "mock" },
+        meta: { mode },
     });
 }
 
-function summarize(req, res) {
+async function summarize(req, res) {
     const { text } = req.body;
-    const result = aiService.summarize(text);
+    const { data, mode } = await aiService.summarize(text);
     res.status(200).json({
         success: true,
         data: {
-            summary: result.summary,
-            keyPoints: result.keyPoints,
+            summary: data.summary,
+            keyPoints: data.keyPoints,
         },
-        meta: { mode: "mock" },
+        meta: { mode },
     });
 }
 

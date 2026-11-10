@@ -405,52 +405,151 @@ test("Lỗi 404 không lộ stack trace", async (t) => {
   assert.ok(!res.body.error.stack);
 });
 
-// ---------- Chế độ gemini chưa có provider không trả mock ----------
+// ---------- Chế độ gemini: lỗi provider phải trả lỗi thật, không trả mock ----------
 
-test("Chế độ gemini chưa tích hợp trả 503 AI_UNAVAILABLE, không trả mock", async (t) => {
-  const origAiMode = process.env.AI_MODE;
-  const origKey = process.env.GEMINI_API_KEY;
-  const origModel = process.env.GEMINI_MODEL;
+const AppError = require("../src/utils/app-error");
 
-  process.env.AI_MODE = "gemini";
-  process.env.GEMINI_API_KEY = "test-key";
-  process.env.GEMINI_MODEL = "test-model";
+function reloadGeminiApp() {
+    const origAiMode = process.env.AI_MODE;
+    const origKey = process.env.GEMINI_API_KEY;
+    const origModel = process.env.GEMINI_MODEL;
 
-  // Xóa cache toàn bộ chuỗi require để nạp lại với env mới
-  const clearModules = [
-    "../src/config/env",
-    "../src/services/mock.service",
-    "../src/services/ai.service",
-    "../src/controllers/ai.controller",
-    "../src/routes/ai.routes",
-    "../src/app",
-  ];
-  clearModules.forEach((m) => {
-    delete require.cache[require.resolve(m)];
-  });
+    process.env.AI_MODE = "gemini";
+    process.env.GEMINI_API_KEY = "test-key";
+    process.env.GEMINI_MODEL = "test-model";
 
-  try {
-    const { createApp: createGeminiApp } = require("../src/app");
-    const geminiApp = createGeminiApp();
+    const geminiService = require("../src/services/gemini.service");
 
-    const res = await request(geminiApp)
-      .post("/api/simplify")
-      .send({ text: "Nội dung kiểm tra gemini" });
+    const clearModules = [
+        "../src/config/env",
+        "../src/services/mock.service",
+        "../src/services/ai.service",
+        "../src/controllers/ai.controller",
+        "../src/routes/ai.routes",
+        "../src/app",
+    ];
+    clearModules.forEach((m) => delete require.cache[require.resolve(m)]);
 
-    assert.strictEqual(res.status, 503);
-    assert.strictEqual(res.body.error.code, "AI_UNAVAILABLE");
-    assert.strictEqual(res.body.success, false);
-    assert.strictEqual(res.body.meta, undefined);
-  } finally {
+    return {
+        geminiService,
+        origAiMode,
+        origKey,
+        origModel,
+        clearModules,
+    };
+}
+
+function restoreGeminiEnv({ geminiService, origSimplify, origAiMode, origKey, origModel, clearModules }) {
+    if (origSimplify !== undefined) {
+        geminiService.simplify = origSimplify;
+    }
     process.env.AI_MODE = origAiMode;
     if (origKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = origKey;
     if (origModel === undefined) delete process.env.GEMINI_MODEL;
     else process.env.GEMINI_MODEL = origModel;
+    clearModules.forEach((m) => delete require.cache[require.resolve(m)]);
+    delete require.cache[require.resolve("../src/services/gemini.service")];
+}
 
-    clearModules.forEach((m) => {
-      delete require.cache[require.resolve(m)];
+test("Chế độ gemini khi provider lỗi trả lỗi thật, không trả mock", async (t) => {
+    const { geminiService, origAiMode, origKey, origModel, clearModules } = reloadGeminiApp();
+    const originalSimplify = geminiService.simplify;
+    geminiService.simplify = async () => {
+        throw new AppError(503, "AI_UNAVAILABLE", "Lỗi provider.");
+    };
+
+    try {
+        const { createApp: createGeminiApp } = require("../src/app");
+        const geminiApp = createGeminiApp();
+
+        const res = await request(geminiApp)
+            .post("/api/simplify")
+            .send({ text: "Nội dung kiểm tra gemini" });
+
+        assert.strictEqual(res.status, 503);
+        assert.strictEqual(res.body.error.code, "AI_UNAVAILABLE");
+        assert.strictEqual(res.body.success, false);
+        assert.strictEqual(res.body.meta, undefined);
+        // Không phải dữ liệu mẫu mock.
+        assert.ok(
+            !res.body.data ||
+                res.body.data.simplifiedText !== `[gemini] Nội dung kiểm tra gemini`
+        );
+    } finally {
+        restoreGeminiEnv({
+            geminiService,
+            origSimplify: originalSimplify,
+            origAiMode,
+            origKey,
+            origModel,
+            clearModules,
+        });
+    }
+});
+
+test("Chế độ gemini thành công gắn meta.mode=gemini, không phải mock", async (t) => {
+    const { geminiService, origAiMode, origKey, origModel, clearModules } = reloadGeminiApp();
+    const originalSimplify = geminiService.simplify;
+    geminiService.simplify = async () => ({
+        simplifiedText: "Đây là bản đơn giản hóa.",
     });
-  }
+
+    try {
+        const { createApp: createGeminiApp } = require("../src/app");
+        const geminiApp = createGeminiApp();
+
+        const res = await request(geminiApp)
+            .post("/api/simplify")
+            .send({ text: "Nội dung cần đơn giản hóa.", level: "basic" });
+
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.body.success, true);
+        assert.strictEqual(res.body.meta.mode, "gemini");
+        assert.strictEqual(res.body.meta.mode !== "mock", true);
+        assert.strictEqual(res.body.data.simplifiedText, "Đây là bản đơn giản hóa.");
+        assert.strictEqual(res.body.data.level, "basic");
+    } finally {
+        restoreGeminiEnv({
+            geminiService,
+            origSimplify: originalSimplify,
+            origAiMode,
+            origKey,
+            origModel,
+            clearModules,
+        });
+    }
+});
+
+test("Chế độ gemini input sai không gọi provider", async (t) => {
+    const { geminiService, origAiMode, origKey, origModel, clearModules } = reloadGeminiApp();
+    let providerCalled = 0;
+    const originalSimplify = geminiService.simplify;
+    geminiService.simplify = async () => {
+        providerCalled += 1;
+        throw new Error("không được gọi");
+    };
+
+    try {
+        const { createApp: createGeminiApp } = require("../src/app");
+        const geminiApp = createGeminiApp();
+
+        const res = await request(geminiApp)
+            .post("/api/simplify")
+            .send({ level: "basic" }); // thiếu text
+
+        assert.strictEqual(res.status, 400);
+        assert.strictEqual(res.body.error.code, "VALIDATION_ERROR");
+        assert.strictEqual(providerCalled, 0);
+    } finally {
+        restoreGeminiEnv({
+            geminiService,
+            origSimplify: originalSimplify,
+            origAiMode,
+            origKey,
+            origModel,
+            clearModules,
+        });
+    }
 });
 
