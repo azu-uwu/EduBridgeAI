@@ -27,8 +27,22 @@ function summarize(text) {
     };
 }
 
+function explainDifficultWords(text) {
+    const preview = text.trim().slice(0, 60);
+    return {
+        words: [
+            {
+                word: preview,
+                meaning: `Nghĩa minh họa của "${preview}".`,
+                example: `Ví dụ sử dụng "${preview}" trong câu văn.`,
+            },
+        ],
+    };
+}
+
 module.exports = {
     simplify,
     explain,
     summarize,
+    explainDifficultWords,
 };

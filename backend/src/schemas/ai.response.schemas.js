@@ -38,8 +38,25 @@ const summarizeOutputSchema = z
     })
     .strict();
 
+const explainDifficultWordsOutputSchema = z
+    .object({
+        words: z
+            .array(
+                z.object({
+                    word: z.string().min(1, "word không được để trống."),
+                    meaning: z.string().min(1, "meaning không được để trống."),
+                    example: z.string().min(1, "example không được để trống."),
+                })
+            )
+            .max(8, "words tối đa 8 phần tử."),
+        cannot_process: z.boolean().optional(),
+        ly_do: z.string().optional(),
+    })
+    .strict();
+
 module.exports = {
     simplifyOutputSchema,
     explainOutputSchema,
     summarizeOutputSchema,
+    explainDifficultWordsOutputSchema,
 };

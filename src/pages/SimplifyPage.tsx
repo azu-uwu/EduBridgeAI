@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useState } from 'react';
 import {
   Check,
   CheckCircle2,
@@ -8,6 +7,8 @@ import {
   Download,
   FileCheck2,
   FileText,
+  Lightbulb,
+  ListTodo,
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
@@ -15,36 +16,19 @@ import { PageBanner } from '../components/PageBanner';
 import { SpeakButton } from '../components/SpeakButton';
 import { StepBadge } from '../components/StepBadge';
 import { PRESET_LESSONS } from '../data/mockData';
-import type { ResultSubTab, SimplificationLevel } from '../types/learning';
-import type { LanguageLevel, SimplifyApiData } from '../types/api';
-import { simplify, ApiErrorThrown } from '../api/edubridge';
+import {
+  ResultSubTab,
+  SimplificationLevel,
+  SimplifyResult,
+} from '../types/learning';
+import { simulateSimplification } from '../utils/aiSimulator';
 import { stopSpeaking } from '../utils/speech';
 
-const MAX_CHARACTERS = 5000;
-
-// Chỉ lưu dữ liệu thực từ API và văn bản nguồn của chính request đó.
-type PageResult = SimplifyApiData & { originalText: string };
-
-const API_LEVELS: Record<SimplificationLevel, LanguageLevel> = {
-  'de-hieu': 'basic',
-  'co-ban': 'intermediate',
-  'nang-cao': 'advanced',
-};
-
-const ERROR_MESSAGES: Record<string, string> = {
-  NETWORK_ERROR: 'Không kết nối được backend. Hãy kiểm tra server và kết nối mạng.',
-  RATE_LIMITED: 'Bạn đã gửi quá nhiều yêu cầu. Hãy chờ một lát rồi thử lại.',
-  AI_TIMEOUT: 'AI xử lý quá lâu. Bạn hãy thử lại sau.',
-  AI_UNAVAILABLE: 'Dịch vụ AI tạm thời chưa sẵn sàng. Bạn hãy thử lại sau.',
-  AI_CANNOT_PROCESS: 'AI chưa thể xử lý nội dung này. Bạn hãy điều chỉnh văn bản.',
-  AI_INVALID_RESPONSE: 'AI trả về kết quả chưa hợp lệ. Bạn hãy thử lại.',
-  INVALID_RESPONSE: 'Phản hồi từ backend chưa đúng định dạng. Vui lòng thử lại.',
-  CONFIG_ERROR: 'Chưa cấu hình đúng địa chỉ backend cho frontend.',
-};
+const MAX_CHARACTERS = 2000;
 
 const LEVEL_OPTIONS: Array<{ value: SimplificationLevel; label: string }> = [
-  { value: 'de-hieu', label: 'Cơ bản (dễ hiểu)' },
-  { value: 'co-ban', label: 'Trung bình' },
+  { value: 'de-hieu', label: 'Dễ hiểu' },
+  { value: 'co-ban', label: 'Cơ bản' },
   { value: 'nang-cao', label: 'Nâng cao' },
 ];
 
@@ -58,74 +42,34 @@ export function SimplifyPage() {
   const [inputText, setInputText] = useState('');
   const [level, setLevel] = useState<SimplificationLevel>('de-hieu');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<PageResult | null>(null);
+  const [result, setResult] = useState<SimplifyResult | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<ResultSubTab>('simplified');
   const [showOriginal, setShowOriginal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const inFlight = useRef(false);
-  const mounted = useRef(true);
-  const copyTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      stopSpeaking();
-      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
-    };
-  }, []);
-
   const handleSelectPreset = (presetText: string) => {
-    setInputText(Array.from(presetText).slice(0, MAX_CHARACTERS).join(''));
+    setInputText(presetText.slice(0, MAX_CHARACTERS));
     setErrorMessage('');
   };
 
-  const handleProcess = async (e: FormEvent<HTMLFormElement>) => {
+  const handleProcess = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inFlight.current) return;
-
-    const originalText = inputText.trim();
-    if (!originalText) {
+    if (!inputText.trim()) {
       setErrorMessage('Em hãy nhập hoặc chọn một đoạn văn bản mẫu trước nhé!');
-      return;
-    }
-    if (Array.from(originalText).length > MAX_CHARACTERS) {
-      setErrorMessage(`Văn bản chỉ được tối đa ${MAX_CHARACTERS} ký tự.`);
       return;
     }
 
     stopSpeaking();
-    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
     setErrorMessage('');
-    setResult(null);
-    setCopied(false);
-    setShowOriginal(false);
-    inFlight.current = true;
     setIsSubmitting(true);
 
-    try {
-      // Hàm simplify trả trực tiếp data, không phải envelope success/data/meta.
-      const generated = await simplify(originalText, API_LEVELS[level]);
-      if (mounted.current) {
-        setResult({ ...generated, originalText });
-      }
-    } catch (error: unknown) {
-      if (!mounted.current) return;
-      if (error instanceof ApiErrorThrown) {
-        const validationMessage = error.code === 'VALIDATION_ERROR'
-          ? error.details?.[0]?.message || error.message
-          : undefined;
-        setErrorMessage(
-          validationMessage || ERROR_MESSAGES[error.code] || error.message
-        );
-      } else {
-        setErrorMessage('Không thể xử lý văn bản. Bạn hãy thử lại sau.');
-      }
-    } finally {
-      inFlight.current = false;
-      if (mounted.current) setIsSubmitting(false);
-    }
+    window.setTimeout(() => {
+      const generated = simulateSimplification(inputText, level);
+      setResult(generated);
+      setActiveSubTab('simplified');
+      setIsSubmitting(false);
+    }, 800);
   };
 
   const handleReset = () => {
@@ -133,23 +77,31 @@ export function SimplifyPage() {
     setResult(null);
     setShowOriginal(false);
     setCopied(false);
-    setErrorMessage('');
-    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
   };
 
-  const getActiveTabPlainText = (): string => result?.simplifiedText ?? '';
+  const getActiveTabPlainText = (): string => {
+    if (!result) return '';
+    if (activeSubTab === 'simplified') {
+      return result.simplifiedText;
+    }
+    if (activeSubTab === 'vocabulary') {
+      return result.extractedWords
+        .map(
+          (item) =>
+            `${item.word}\n- Ý nghĩa: ${item.meaning}\n- Ví dụ: ${item.example}`
+        )
+        .join('\n\n');
+    }
+    return result.summaryPoints.map((pt, idx) => `${idx + 1}. ${pt}`).join('\n');
+  };
 
   const handleCopy = async () => {
     const content = getActiveTabPlainText();
     if (!content) return;
     try {
       await navigator.clipboard.writeText(content);
-      if (!mounted.current) return;
       setCopied(true);
-      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
-      copyTimer.current = window.setTimeout(() => {
-        if (mounted.current) setCopied(false);
-      }, 2200);
+      window.setTimeout(() => setCopied(false), 2200);
     } catch {
       setCopied(false);
     }
@@ -167,7 +119,7 @@ export function SimplifyPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'edubridge-simplified.txt';
+    link.download = `edubridge-${activeSubTab}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -177,7 +129,7 @@ export function SimplifyPage() {
   // Loading Skeleton View
   if (isSubmitting) {
     return (
-      <div className="space-y-6 animate-fade-up" role="status" aria-live="polite" aria-busy="true">
+      <div className="space-y-6 animate-fade-up">
         <PageBanner
           icon={
             <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
@@ -231,19 +183,21 @@ export function SimplifyPage() {
           className="grid grid-cols-1 gap-2 rounded-3xl border border-slate-200/80 bg-white p-1.5 shadow-sm sm:grid-cols-3 sm:rounded-full"
         >
           {SUB_TABS.map((tab) => {
-            const isActive = tab.id === 'simplified';
+            const isActive = activeSubTab === tab.id;
             return (
               <button
                 key={tab.id}
                 role="tab"
                 type="button"
                 aria-selected={isActive}
-                disabled={!isActive}
-                title={!isActive ? 'Dùng chức năng tương ứng trên thanh điều hướng.' : undefined}
+                onClick={() => {
+                  stopSpeaking();
+                  setActiveSubTab(tab.id);
+                }}
                 className={`rounded-full px-5 py-3 text-sm font-bold transition-all ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : 'cursor-not-allowed text-slate-400'
+                    : 'text-[#0F2942] hover:bg-blue-50/70'
                 }`}
               >
                 {tab.label}
@@ -251,11 +205,6 @@ export function SimplifyPage() {
             );
           })}
         </div>
-
-        <p className="text-sm text-slate-500">
-          Kết quả này chỉ gồm văn bản đơn giản hóa. Để giải thích từ khó hoặc
-          tóm tắt bài học, chọn chức năng tương ứng trên thanh điều hướng.
-        </p>
 
         {/* Result Split Layout */}
         <div className="grid items-stretch gap-6 lg:grid-cols-12">
@@ -265,11 +214,24 @@ export function SimplifyPage() {
               {/* Header inside result card */}
               <div className="flex items-start gap-4">
                 <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <FileCheck2 className="h-6 w-6 text-emerald-600" aria-hidden="true" />
+                  {activeSubTab === 'simplified' && (
+                    <FileCheck2 className="h-6 w-6 text-emerald-600" aria-hidden="true" />
+                  )}
+                  {activeSubTab === 'vocabulary' && (
+                    <Lightbulb className="h-6 w-6 text-amber-500" aria-hidden="true" />
+                  )}
+                  {activeSubTab === 'summary' && (
+                    <ListTodo className="h-6 w-6 text-purple-600" aria-hidden="true" />
+                  )}
                 </span>
                 <div>
                   <h2 className="text-xl font-extrabold leading-snug text-[#0F2942]">
-                    Văn bản đã được đơn giản hóa thành công!
+                    {activeSubTab === 'simplified' &&
+                      'Văn bản đã được đơn giản hóa thành công!'}
+                    {activeSubTab === 'vocabulary' &&
+                      'Các từ khó được giải thích dễ hiểu'}
+                    {activeSubTab === 'summary' &&
+                      'Các ý chính của bài học'}
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Bạn có thể nghe phát âm, sao chép, tải xuống hoặc thử lại nếu
@@ -280,7 +242,7 @@ export function SimplifyPage() {
 
               {/* Tab Content Body */}
               <div className="rounded-2xl border border-blue-100 bg-[#F8FBFF] p-5">
-
+                {activeSubTab === 'simplified' && (
                   <div className="space-y-4">
                     <div className="space-y-3 whitespace-pre-line text-base leading-relaxed text-[#0F2942]">
                       {result.simplifiedText}
@@ -310,7 +272,58 @@ export function SimplifyPage() {
                       )}
                     </div>
                   </div>
-                
+                )}
+
+                {activeSubTab === 'vocabulary' && (
+                  <ul className="space-y-4">
+                    {result.extractedWords.map((entry) => (
+                      <li
+                        key={entry.word}
+                        className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="text-base font-extrabold text-blue-700">
+                            {entry.word}
+                          </h3>
+                          <SpeakButton
+                            variant="icon"
+                            text={`${entry.word}. Ý nghĩa: ${entry.meaning}. Ví dụ: ${entry.example}`}
+                            className="h-9 w-9"
+                          />
+                        </div>
+                        <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
+                          <span className="font-bold text-[#0F2942]">
+                            Ý nghĩa:{' '}
+                          </span>
+                          {entry.meaning}
+                        </p>
+                        <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                          <span className="font-bold text-[#0F2942]">
+                            Ví dụ:{' '}
+                          </span>
+                          {entry.example}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {activeSubTab === 'summary' && (
+                  <ul className="space-y-3">
+                    {result.summaryPoints.map((point, index) => (
+                      <li
+                        key={index}
+                        className="flex items-start gap-3 text-base leading-relaxed text-[#0F2942]"
+                      >
+                        <CheckCircle2
+                          className="mt-1 h-5 w-5 flex-shrink-0 text-emerald-500"
+                          aria-hidden="true"
+                        />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
 
@@ -421,12 +434,7 @@ export function SimplifyPage() {
                   id="simplification-level"
                   value={level}
                   onChange={(e) =>
-                    {
-                      const value = e.target.value;
-                      if (value === 'de-hieu' || value === 'co-ban' || value === 'nang-cao') {
-                        setLevel(value);
-                      }
-                    }
+                    setLevel(e.target.value as SimplificationLevel)
                   }
                   className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-10 text-sm font-bold text-[#0F2942] shadow-sm transition-colors hover:border-blue-300"
                 >
@@ -451,6 +459,7 @@ export function SimplifyPage() {
               <textarea
                 id="simplify-textarea"
                 rows={7}
+                maxLength={MAX_CHARACTERS}
                 value={inputText}
                 onChange={(e) => {
                   setInputText(e.target.value);
@@ -464,7 +473,7 @@ export function SimplifyPage() {
                   {errorMessage}
                 </span>
                 <span className="font-medium text-slate-400">
-                  {Array.from(inputText.trim()).length}/{MAX_CHARACTERS}
+                  {inputText.length}/{MAX_CHARACTERS}
                 </span>
               </div>
             </div>
@@ -473,7 +482,6 @@ export function SimplifyPage() {
           <div className="mt-5 flex justify-center">
             <button
               type="submit"
-              disabled={isSubmitting}
               className="inline-flex items-center gap-2.5 rounded-full bg-blue-600 px-8 py-3.5 text-base font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg"
             >
               <Sparkles className="h-5 w-5" aria-hidden="true" />

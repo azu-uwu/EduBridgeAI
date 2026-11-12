@@ -40,8 +40,19 @@ async function summarize(req, res) {
     });
 }
 
+async function explainDifficultWords(req, res) {
+    const { text } = req.body;
+    const { data, mode } = await aiService.explainDifficultWords(text);
+    res.status(200).json({
+        success: true,
+        data: { words: data.words },
+        meta: { mode },
+    });
+}
+
 module.exports = {
     simplify,
     explain,
     summarize,
+    explainDifficultWords,
 };

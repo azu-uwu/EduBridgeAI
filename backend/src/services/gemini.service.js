@@ -180,10 +180,24 @@ async function summarize(text) {
     return parseAndCheck(response);
 }
 
+async function explainDifficultWords(text) {
+    const { systemInstruction, buildUserContent, responseJsonSchema } =
+        require("../prompts/explain-difficult-words.prompt");
+    const model = resolveModel();
+    const response = await generateWithDeadline(
+        model,
+        systemInstruction,
+        buildUserContent({ text }),
+        responseJsonSchema
+    );
+    return parseAndCheck(response);
+}
+
 module.exports = {
     simplify,
     explain,
     summarize,
+    explainDifficultWords,
     getClient,
     resetClient,
     generateWithDeadline,

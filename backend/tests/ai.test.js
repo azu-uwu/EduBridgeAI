@@ -553,3 +553,116 @@ test("Chế độ gemini input sai không gọi provider", async (t) => {
     }
 });
 
+
+// ---------- POST /api/explain-difficult-words ----------
+
+function stubMockExplainDifficultWordsAndCreateApp(stubFn) {
+    const mods = [
+        "../src/config/env",
+        "../src/services/mock.service",
+        "../src/services/ai.service",
+        "../src/controllers/ai.controller",
+        "../src/routes/ai.routes",
+        "../src/app",
+    ];
+    mods.forEach((m) => delete require.cache[require.resolve(m)]);
+
+    const app = require("../src/app").createApp();
+
+    const mockService = require("../src/services/mock.service");
+    const original = mockService.explainDifficultWords;
+    mockService.explainDifficultWords = stubFn;
+
+    return {
+        app,
+        restore: () => {
+            mockService.explainDifficultWords = original;
+            mods.forEach((m) => delete require.cache[require.resolve(m)]);
+        },
+    };
+}
+
+test("POST /api/explain-difficult-words happy path", async (t) => {
+    const app = makeApp();
+    const res = await request(app)
+        .post("/api/explain-difficult-words")
+        .send({ text: "Quang hợp là quá trình cây tạo chất dinh dưỡng từ ánh sáng." });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.meta.mode, "mock");
+    assert.ok(Array.isArray(res.body.data.words));
+    assert.ok(res.body.data.words.length >= 1);
+    assert.ok(res.body.data.words.length <= 8);
+    for (const w of res.body.data.words) {
+        assert.ok(typeof w.word === "string" && w.word.trim().length > 0);
+        assert.ok(typeof w.meaning === "string" && w.meaning.trim().length > 0);
+        assert.ok(typeof w.example === "string" && w.example.trim().length > 0);
+    }
+});
+
+test("POST /api/explain-difficult-words thiếu text trả 400", async (t) => {
+    const app = makeApp();
+    const res = await request(app).post("/api/explain-difficult-words").send({});
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error.code, "VALIDATION_ERROR");
+});
+
+test("POST /api/explain-difficult-words text sai kiểu trả 400", async (t) => {
+    const app = makeApp();
+    const res = await request(app).post("/api/explain-difficult-words").send({ text: 123 });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error.code, "VALIDATION_ERROR");
+});
+
+test("POST /api/explain-difficult-words text chỉ khoảng trắng trả 400", async (t) => {
+    const app = makeApp();
+    const res = await request(app).post("/api/explain-difficult-words").send({ text: "   " });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error.code, "VALIDATION_ERROR");
+});
+
+test("POST /api/explain-difficult-words trường lạ bị chặn", async (t) => {
+    const app = makeApp();
+    const res = await request(app)
+        .post("/api/explain-difficult-words")
+        .send({ text: "Nội dung kiểm tra.", extra: "x" });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error.code, "VALIDATION_ERROR");
+});
+
+test("POST /api/explain-difficult-words AI trả danh sách rỗng vẫn thành công", async (t) => {
+    const { app, restore } = stubMockExplainDifficultWordsAndCreateApp(() => ({
+        words: [],
+    }));
+    try {
+        const res = await request(app)
+            .post("/api/explain-difficult-words")
+            .send({ text: "Nội dung không có từ khó." });
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.body.success, true);
+        assert.deepStrictEqual(res.body.data.words, []);
+        assert.strictEqual(res.body.meta.mode, "mock");
+    } finally {
+        restore();
+    }
+});
+
+test("POST /api/explain-difficult-words loại từ trùng và từ không có trong đoạn", async (t) => {
+    const { app, restore } = stubMockExplainDifficultWordsAndCreateApp(() => ({
+        words: [
+            { word: "quang hợp", meaning: "Ngã 1", example: "Ví dụ 1" },
+            { word: "QUANG HỢP", meaning: "Ngã 2", example: "Ví dụ 2" }, // trùng (khác hoa thường)
+            { word: "không có trong đoạn", meaning: "Ngã 3", example: "Ví dụ 3" }, // không có trong văn bản
+        ],
+    }));
+    try {
+        const res = await request(app)
+            .post("/api/explain-difficult-words")
+            .send({ text: "Quang hợp là quá trình cây tạo chất dinh dưỡng." });
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.body.data.words.length, 1);
+        assert.strictEqual(res.body.data.words[0].word, "quang hợp");
+    } finally {
+        restore();
+    }
+});

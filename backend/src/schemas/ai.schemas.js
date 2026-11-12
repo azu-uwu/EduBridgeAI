@@ -63,8 +63,15 @@ const summarizeSchema = z
     })
     .strict();
 
+const explainDifficultWordsSchema = z
+    .object({
+        text: textField,
+    })
+    .strict();
+
 module.exports = {
     simplifySchema,
     explainSchema,
     summarizeSchema,
+    explainDifficultWordsSchema,
 };

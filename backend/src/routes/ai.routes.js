@@ -8,6 +8,7 @@ const {
     simplifySchema,
     explainSchema,
     summarizeSchema,
+    explainDifficultWordsSchema,
 } = require("../schemas/ai.schemas");
 const aiController = require("../controllers/ai.controller");
 
@@ -65,6 +66,15 @@ function createAiRoutes(options = {}) {
         jsonParser,
         validate(summarizeSchema),
         aiController.summarize
+    );
+
+    router.post(
+        "/explain-difficult-words",
+        aiLimiter,
+        requireJsonContentType,
+        jsonParser,
+        validate(explainDifficultWordsSchema),
+        aiController.explainDifficultWords
     );
 
     return router;

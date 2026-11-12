@@ -6,6 +6,7 @@ const {
     simplifyOutputSchema,
     explainOutputSchema,
     summarizeOutputSchema,
+    explainDifficultWordsOutputSchema,
 } = require("../schemas/ai.response.schemas");
 
 function validateOutput(schema, parsed) {
@@ -18,6 +19,56 @@ function validateOutput(schema, parsed) {
             "Kết quả từ AI không đúng định dạng mong đợi."
         );
     }
+}
+
+function normalizeString(value) {
+    return String(value)
+        .normalize("NFC")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function tokenize(value) {
+    const normalized = normalizeString(value);
+    return normalized === "" ? [] : normalized.split(" ");
+}
+
+function isWholeWordInText(word, text) {
+    const wordTokens = tokenize(word);
+    const textTokens = tokenize(text);
+    if (wordTokens.length === 0 || wordTokens.length > textTokens.length) {
+        return false;
+    }
+    for (let i = 0; i <= textTokens.length - wordTokens.length; i++) {
+        let matched = true;
+        for (let j = 0; j < wordTokens.length; j++) {
+            if (textTokens[i + j] !== wordTokens[j]) {
+                matched = false;
+                break;
+            }
+        }
+        if (matched) return true;
+    }
+    return false;
+}
+
+function cleanAndFilterWords(words, text) {
+    const seen = new Set();
+    const result = [];
+    for (const item of words) {
+        const normalizedWord = normalizeString(item.word);
+        if (normalizedWord === "") continue;
+        if (seen.has(normalizedWord)) continue;
+        if (!isWholeWordInText(item.word, text)) continue;
+        seen.add(normalizedWord);
+        result.push({
+            word: item.word,
+            meaning: item.meaning,
+            example: item.example,
+        });
+    }
+    return result;
 }
 
 async function simplify(text, level) {
@@ -65,8 +116,24 @@ async function summarize(text) {
     };
 }
 
+async function explainDifficultWords(text) {
+    let parsed;
+    if (aiMode === "gemini") {
+        parsed = await geminiService.explainDifficultWords(text);
+        parsed = validateOutput(explainDifficultWordsOutputSchema, parsed);
+    } else {
+        parsed = mockService.explainDifficultWords(text);
+    }
+    const words = cleanAndFilterWords(parsed.words, text);
+    return {
+        data: { words },
+        mode: aiMode,
+    };
+}
+
 module.exports = {
     simplify,
     explain,
     summarize,
+    explainDifficultWords,
 };
