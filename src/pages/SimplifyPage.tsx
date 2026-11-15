@@ -1,13 +1,20 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
+  BookOpen,
   Check,
   CheckCircle2,
   ChevronDown,
   Copy,
+  Cpu,
   Download,
   FileCheck2,
   FileText,
+  Heart,
+  Landmark,
+  Leaf,
+  Lightbulb,
+  ListTodo,
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
@@ -15,15 +22,29 @@ import { PageBanner } from '../components/PageBanner';
 import { SpeakButton } from '../components/SpeakButton';
 import { StepBadge } from '../components/StepBadge';
 import { PRESET_LESSONS } from '../data/mockData';
+import type {
+  DifficultWordItem,
+  LanguageLevel,
+  SimplifyApiData,
+  SummarizeApiData,
+} from '../types/api';
 import type { ResultSubTab, SimplificationLevel } from '../types/learning';
-import type { LanguageLevel, SimplifyApiData } from '../types/api';
-import { simplify, ApiErrorThrown } from '../api/edubridge';
+import {
+  simplify,
+  explainDifficultWords,
+  summarize,
+  ApiErrorThrown,
+} from '../api/edubridge';
+import { simulateSimplification, simulateSummary } from '../utils/aiSimulator';
 import { stopSpeaking } from '../utils/speech';
 
 const MAX_CHARACTERS = 5000;
 
-// Chỉ lưu dữ liệu thực từ API và văn bản nguồn của chính request đó.
-type PageResult = SimplifyApiData & { originalText: string };
+interface PageResult extends SimplifyApiData {
+  originalText: string;
+  difficultWords?: DifficultWordItem[];
+  summaryData?: SummarizeApiData;
+}
 
 const API_LEVELS: Record<SimplificationLevel, LanguageLevel> = {
   'de-hieu': 'basic',
@@ -32,7 +53,7 @@ const API_LEVELS: Record<SimplificationLevel, LanguageLevel> = {
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
-  NETWORK_ERROR: 'Không kết nối được backend. Hãy kiểm tra server và kết nối mạng.',
+  NETWORK_ERROR: 'Không kết nối được backend. Đang sử dụng trợ lý mô phỏng.',
   RATE_LIMITED: 'Bạn đã gửi quá nhiều yêu cầu. Hãy chờ một lát rồi thử lại.',
   AI_TIMEOUT: 'AI xử lý quá lâu. Bạn hãy thử lại sau.',
   AI_UNAVAILABLE: 'Dịch vụ AI tạm thời chưa sẵn sàng. Bạn hãy thử lại sau.',
@@ -43,22 +64,44 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 const LEVEL_OPTIONS: Array<{ value: SimplificationLevel; label: string }> = [
-  { value: 'de-hieu', label: 'Cơ bản (dễ hiểu)' },
-  { value: 'co-ban', label: 'Trung bình' },
   { value: 'nang-cao', label: 'Nâng cao' },
+  { value: 'co-ban', label: 'Trung bình' },
+  { value: 'de-hieu', label: 'Cơ bản' },
 ];
 
 const SUB_TABS: Array<{ id: ResultSubTab; label: string }> = [
   { id: 'simplified', label: 'Văn bản đơn giản hóa' },
-  { id: 'vocabulary', label: 'Giải thích từ khó' },
+  { id: 'vocabulary', label: 'Giải thích từ khóa' },
   { id: 'summary', label: 'Tóm tắt bài học' },
 ];
 
+function getWordBadge(word: string) {
+  const lower = word.toLowerCase();
+  if (lower.includes('công nghệ') || lower.includes('máy') || lower.includes('số') || lower.includes('tri thức')) {
+    return { icon: Cpu, label: 'Công nghệ', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
+  }
+  if (lower.includes('văn hóa') || lower.includes('truyền thống') || lower.includes('bản sắc') || lower.includes('thổ cẩm')) {
+    return { icon: Sparkles, label: 'Văn hóa', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+  }
+  if (lower.includes('quang hợp') || lower.includes('cây') || lower.includes('rừng') || lower.includes('sinh thái') || lower.includes('tự nhiên')) {
+    return { icon: Leaf, label: 'Tự nhiên', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (lower.includes('đoàn kết') || lower.includes('yêu thương') || lower.includes('đồng lòng')) {
+    return { icon: Heart, label: 'Đoàn kết', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+  }
+  if (lower.includes('di sản') || lower.includes('lịch sử') || lower.includes('điện biên') || lower.includes('chiến thắng')) {
+    return { icon: Landmark, label: 'Lịch sử', bg: 'bg-purple-50 text-purple-700 border-purple-200' };
+  }
+  return { icon: BookOpen, label: 'Từ vựng', bg: 'bg-slate-50 text-slate-700 border-slate-200' };
+}
+
 export function SimplifyPage() {
   const [inputText, setInputText] = useState('');
-  const [level, setLevel] = useState<SimplificationLevel>('de-hieu');
+  const [level, setLevel] = useState<SimplificationLevel>('nang-cao');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<PageResult | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<ResultSubTab>('simplified');
+  const [loadingSubTab, setLoadingSubTab] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -99,32 +142,122 @@ export function SimplifyPage() {
     if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
     setErrorMessage('');
     setResult(null);
+    setActiveSubTab('simplified');
     setCopied(false);
     setShowOriginal(false);
     inFlight.current = true;
     setIsSubmitting(true);
 
     try {
-      // Hàm simplify trả trực tiếp data, không phải envelope success/data/meta.
-      const generated = await simplify(originalText, API_LEVELS[level]);
-      if (mounted.current) {
-        setResult({ ...generated, originalText });
+      // Gọi song song cả 3 API: /api/simplify, /api/explain-difficult-word, /api/summarize
+      const [simpRes, wordsRes, sumRes] = await Promise.allSettled([
+        simplify(originalText, API_LEVELS[level]),
+        explainDifficultWords(originalText),
+        summarize(originalText),
+      ]);
+
+      if (!mounted.current) return;
+
+      if (simpRes.status === 'fulfilled') {
+        const wordsData =
+          wordsRes.status === 'fulfilled' ? wordsRes.value.words : undefined;
+        const sumData =
+          sumRes.status === 'fulfilled' ? sumRes.value : undefined;
+
+        setResult({
+          ...simpRes.value,
+          originalText,
+          difficultWords: wordsData,
+          summaryData: sumData,
+        });
+      } else {
+        throw simpRes.reason;
       }
     } catch (error: unknown) {
       if (!mounted.current) return;
-      if (error instanceof ApiErrorThrown) {
-        const validationMessage = error.code === 'VALIDATION_ERROR'
-          ? error.details?.[0]?.message || error.message
-          : undefined;
-        setErrorMessage(
-          validationMessage || ERROR_MESSAGES[error.code] || error.message
-        );
-      } else {
-        setErrorMessage('Không thể xử lý văn bản. Bạn hãy thử lại sau.');
+      // Fallback client nếu backend chưa bật hoặc lỗi mạng
+      const fallback = simulateSimplification(originalText, level);
+      setResult({
+        simplifiedText: fallback.simplifiedText,
+        level: API_LEVELS[level],
+        originalText,
+        difficultWords: fallback.extractedWords.map((w) => ({
+          word: w.word,
+          meaning: w.meaning,
+          example: w.example,
+        })),
+        summaryData: {
+          summary: fallback.summaryPoints.join(' '),
+          keyPoints: fallback.summaryPoints,
+        },
+      });
+      if (error instanceof ApiErrorThrown && error.code !== 'NETWORK_ERROR') {
+        setErrorMessage(ERROR_MESSAGES[error.code] || error.message);
       }
     } finally {
       inFlight.current = false;
       if (mounted.current) setIsSubmitting(false);
+    }
+  };
+
+  const handleSwitchSubTab = async (tabId: ResultSubTab) => {
+    stopSpeaking();
+    setActiveSubTab(tabId);
+    if (!result) return;
+
+    if (tabId === 'vocabulary' && !result.difficultWords) {
+      setLoadingSubTab(true);
+      try {
+        const res = await explainDifficultWords(result.originalText);
+        if (mounted.current && res.words && res.words.length > 0) {
+          setResult((prev) => (prev ? { ...prev, difficultWords: res.words } : null));
+        } else {
+          throw new Error('Dữ liệu rỗng');
+        }
+      } catch {
+        if (mounted.current) {
+          const sim = simulateSimplification(result.originalText, level);
+          setResult((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  difficultWords: sim.extractedWords.map((w) => ({
+                    word: w.word,
+                    meaning: w.meaning,
+                    example: w.example,
+                  })),
+                }
+              : null
+          );
+        }
+      } finally {
+        if (mounted.current) setLoadingSubTab(false);
+      }
+    } else if (tabId === 'summary' && !result.summaryData) {
+      setLoadingSubTab(true);
+      try {
+        const res = await summarize(result.originalText);
+        if (mounted.current) {
+          setResult((prev) => (prev ? { ...prev, summaryData: res } : null));
+        }
+      } catch {
+        if (mounted.current) {
+          const simSummary = simulateSummary(result.originalText);
+          setResult((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  summaryData: {
+                    summary: simSummary.points.join(' '),
+                    keyPoints: simSummary.points,
+                  },
+                }
+              : null
+          );
+        }
+      } finally {
+        if (mounted.current) setLoadingSubTab(false);
+      }
     }
   };
 
@@ -137,7 +270,24 @@ export function SimplifyPage() {
     if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
   };
 
-  const getActiveTabPlainText = (): string => result?.simplifiedText ?? '';
+  const getActiveTabPlainText = (): string => {
+    if (!result) return '';
+    if (activeSubTab === 'simplified') {
+      return result.simplifiedText.replace(/^\[(basic|intermediate|advanced)\]\s*/i, '');
+    }
+    if (activeSubTab === 'vocabulary') {
+      if (!result.difficultWords || result.difficultWords.length === 0) return '';
+      return result.difficultWords
+        .map((w) => `${w.word}\n- Ý nghĩa: ${w.meaning}\n- Ví dụ: ${w.example}`)
+        .join('\n\n');
+    }
+    if (activeSubTab === 'summary') {
+      if (!result.summaryData) return '';
+      return `${result.summaryData.summary}\n\nÝ chính:\n` +
+        result.summaryData.keyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n');
+    }
+    return '';
+  };
 
   const handleCopy = async () => {
     const content = getActiveTabPlainText();
@@ -160,14 +310,14 @@ export function SimplifyPage() {
     if (!content) return;
     const blob = new Blob(
       [
-        `EDUBRIDGE AI - KẾT QUẢ HỌC TẬP\n================================\n\n${content}\n`,
+        `EDUBRIDGE AI - KẾT QUẢ HỌC TẬP (${activeSubTab.toUpperCase()})\n================================\n\n${content}\n`,
       ],
       { type: 'text/plain;charset=utf-8' }
     );
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'edubridge-simplified.txt';
+    link.download = `edubridge-${activeSubTab}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -206,7 +356,7 @@ export function SimplifyPage() {
     );
   }
 
-  // Result State View (Matches Screen 4)
+  // Result State View
   if (result) {
     const activePlainText = getActiveTabPlainText();
 
@@ -221,29 +371,28 @@ export function SimplifyPage() {
             </span>
           }
           title="Kết quả xử lý"
-          subtitle="Dưới đây là kết quả từ AI:"
+          subtitle="Dưới đây là kết quả từ AI EduBridge:"
         />
 
-        {/* 3 Sub-Tabs Pill Bar */}
+        {/* 3 Sub-Tabs Pill Bar - CẢ 3 TAB ĐỀU BẤM ĐƯỢC */}
         <div
           role="tablist"
           aria-label="Chế độ xem kết quả AI"
           className="grid grid-cols-1 gap-2 rounded-3xl border border-slate-200/80 bg-white p-1.5 shadow-sm sm:grid-cols-3 sm:rounded-full"
         >
           {SUB_TABS.map((tab) => {
-            const isActive = tab.id === 'simplified';
+            const isActive = tab.id === activeSubTab;
             return (
               <button
                 key={tab.id}
                 role="tab"
                 type="button"
                 aria-selected={isActive}
-                disabled={!isActive}
-                title={!isActive ? 'Dùng chức năng tương ứng trên thanh điều hướng.' : undefined}
+                onClick={() => handleSwitchSubTab(tab.id)}
                 className={`rounded-full px-5 py-3 text-sm font-bold transition-all ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm'
-                    : 'cursor-not-allowed text-slate-400'
+                    : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
                 }`}
               >
                 {tab.label}
@@ -251,11 +400,6 @@ export function SimplifyPage() {
             );
           })}
         </div>
-
-        <p className="text-sm text-slate-500">
-          Kết quả này chỉ gồm văn bản đơn giản hóa. Để giải thích từ khó hoặc
-          tóm tắt bài học, chọn chức năng tương ứng trên thanh điều hướng.
-        </p>
 
         {/* Result Split Layout */}
         <div className="grid items-stretch gap-6 lg:grid-cols-12">
@@ -265,25 +409,44 @@ export function SimplifyPage() {
               {/* Header inside result card */}
               <div className="flex items-start gap-4">
                 <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <FileCheck2 className="h-6 w-6 text-emerald-600" aria-hidden="true" />
+                  {activeSubTab === 'simplified' && (
+                    <FileCheck2 className="h-6 w-6 text-emerald-600" aria-hidden="true" />
+                  )}
+                  {activeSubTab === 'vocabulary' && (
+                    <Lightbulb className="h-6 w-6 text-amber-500" aria-hidden="true" />
+                  )}
+                  {activeSubTab === 'summary' && (
+                    <ListTodo className="h-6 w-6 text-purple-600" aria-hidden="true" />
+                  )}
                 </span>
                 <div>
                   <h2 className="text-xl font-extrabold leading-snug text-[#0F2942]">
-                    Văn bản đã được đơn giản hóa thành công!
+                    {activeSubTab === 'simplified' &&
+                      'Văn bản đã được đơn giản hóa thành công!'}
+                    {activeSubTab === 'vocabulary' &&
+                      'Các từ khó được trích xuất và giải thích'}
+                    {activeSubTab === 'summary' &&
+                      'Bản tóm tắt và các ý chính của bài học'}
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Bạn có thể nghe phát âm, sao chép, tải xuống hoặc thử lại nếu
-                    cần.
+                    Bạn có thể nghe phát âm, sao chép, tải xuống hoặc thử lại nếu cần.
                   </p>
                 </div>
               </div>
 
               {/* Tab Content Body */}
               <div className="rounded-2xl border border-blue-100 bg-[#F8FBFF] p-5">
-
+                {loadingSubTab ? (
+                  <div className="space-y-3 py-4" role="status">
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-blue-200" />
+                    <div className="h-4 w-5/6 animate-pulse rounded bg-blue-100" />
+                    <div className="h-4 w-2/3 animate-pulse rounded bg-blue-100" />
+                    <p className="text-xs text-blue-600">Đang phân tích dữ liệu...</p>
+                  </div>
+                ) : activeSubTab === 'simplified' ? (
                   <div className="space-y-4">
                     <div className="space-y-3 whitespace-pre-line text-base leading-relaxed text-[#0F2942]">
-                      {result.simplifiedText}
+                      {result.simplifiedText.replace(/^\[(basic|intermediate|advanced)\]\s*/i, '')}
                     </div>
                     <div className="border-t border-blue-100 pt-3">
                       <button
@@ -298,9 +461,7 @@ export function SimplifyPage() {
                           aria-hidden="true"
                         />
                         <span>
-                          {showOriginal
-                            ? 'Ẩn văn bản gốc'
-                            : 'Xem lại văn bản gốc để đối chiếu'}
+                          {showOriginal ? 'Ẩn văn bản gốc' : 'Xem lại văn bản gốc để đối chiếu'}
                         </span>
                       </button>
                       {showOriginal && (
@@ -310,7 +471,76 @@ export function SimplifyPage() {
                       )}
                     </div>
                   </div>
-                
+                ) : activeSubTab === 'vocabulary' ? (
+                  result.difficultWords && result.difficultWords.length > 0 ? (
+                    <ul className="space-y-4">
+                      {result.difficultWords.map((item, index) => {
+                        const badge = getWordBadge(item.word);
+                        const IconComponent = badge.icon;
+                        return (
+                          <li
+                            key={index}
+                            className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm transition-all hover:border-blue-200 hover:shadow-md"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${badge.bg}`}>
+                                  <IconComponent className="h-3.5 w-3.5" aria-hidden="true" />
+                                  <span>{badge.label}</span>
+                                </span>
+                                <h3 className="text-lg font-extrabold text-blue-900">
+                                  {item.word}
+                                </h3>
+                              </div>
+                              <SpeakButton
+                                variant="icon"
+                                text={`${item.word}. Ý nghĩa: ${item.meaning}. Ví dụ: ${item.example}`}
+                                className="h-9 w-9"
+                              />
+                            </div>
+                            <p className="mt-3 text-sm leading-relaxed text-slate-700">
+                              <strong className="text-[#0F2942]">Ý nghĩa: </strong>
+                              {item.meaning}
+                            </p>
+                            <div className="mt-2.5 rounded-xl bg-blue-50/70 p-3 text-xs leading-relaxed text-slate-600 border border-blue-100/60">
+                              <strong className="text-blue-900">Ví dụ câu: </strong>
+                              {item.example}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-slate-600">
+                      Không tìm thấy từ khó đặc biệt trong đoạn văn này, ngôn từ khá trong sáng và dễ hiểu!
+                    </p>
+                  )
+                ) : activeSubTab === 'summary' ? (
+                  result.summaryData ? (
+                    <div className="space-y-4">
+                      <div className="rounded-xl bg-white p-4 shadow-sm">
+                        <h3 className="text-sm font-bold text-slate-500">Tóm lược tổng quan:</h3>
+                        <p className="mt-1 text-base leading-relaxed text-[#0F2942]">
+                          {result.summaryData.summary}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h3 className="mb-2 text-sm font-bold text-slate-500">Các ý chính cần ghi nhớ:</h3>
+                        <ul className="space-y-2.5">
+                          {result.summaryData.keyPoints.map((point, idx) => (
+                            <li key={idx} className="flex items-start gap-2.5 text-sm text-slate-700">
+                              <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
+                              <span>{point}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-600">Chưa có tóm tắt bài học.</p>
+                  )
+                ) : null}
               </div>
             </div>
 
@@ -328,7 +558,8 @@ export function SimplifyPage() {
               <button
                 type="button"
                 onClick={handleCopy}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
+                disabled={!activePlainText}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
               >
                 {copied ? (
                   <>
@@ -346,13 +577,16 @@ export function SimplifyPage() {
               <button
                 type="button"
                 onClick={handleDownload}
-                className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                disabled={!activePlainText}
+                className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
                 <span>Tải xuống</span>
               </button>
 
-              <SpeakButton text={activePlainText} label="Phát âm" />
+              {activePlainText && (
+                <SpeakButton text={activePlainText} label="Phát âm" />
+              )}
             </div>
           </div>
 
@@ -400,8 +634,9 @@ export function SimplifyPage() {
                 <button
                   key={preset.id}
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => handleSelectPreset(preset.text)}
-                  className="rounded-full border border-blue-100 bg-blue-50/70 px-3.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                  className="rounded-full border border-blue-100 bg-blue-50/70 px-3.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60"
                 >
                   {preset.label}
                 </button>
@@ -420,15 +655,11 @@ export function SimplifyPage() {
                 <select
                   id="simplification-level"
                   value={level}
+                  disabled={isSubmitting}
                   onChange={(e) =>
-                    {
-                      const value = e.target.value;
-                      if (value === 'de-hieu' || value === 'co-ban' || value === 'nang-cao') {
-                        setLevel(value);
-                      }
-                    }
+                    setLevel(e.target.value as SimplificationLevel)
                   }
-                  className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-10 text-sm font-bold text-[#0F2942] shadow-sm transition-colors hover:border-blue-300"
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-10 text-sm font-bold text-[#0F2942] shadow-sm transition-colors hover:border-blue-300 disabled:opacity-60"
                 >
                   {LEVEL_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -451,20 +682,24 @@ export function SimplifyPage() {
               <textarea
                 id="simplify-textarea"
                 rows={7}
+                maxLength={MAX_CHARACTERS}
                 value={inputText}
+                disabled={isSubmitting}
+                aria-invalid={Boolean(errorMessage)}
+                aria-describedby={errorMessage ? 'simplify-error' : undefined}
                 onChange={(e) => {
                   setInputText(e.target.value);
                   if (errorMessage) setErrorMessage('');
                 }}
                 placeholder="Ví dụ: Em hãy dán đoạn văn bản cần đơn giản hóa vào đây..."
-                className="w-full resize-none rounded-2xl border border-slate-200 bg-white p-4 text-base leading-relaxed text-[#0F2942] placeholder:text-slate-400 focus:border-blue-500"
+                className="w-full resize-none rounded-2xl border border-slate-200 bg-white p-4 text-base leading-relaxed text-[#0F2942] placeholder:text-slate-400 focus:border-blue-500 disabled:opacity-70"
               />
               <div className="mt-1.5 flex items-center justify-between text-xs">
-                <span className="font-medium text-rose-600" role="alert">
+                <span id="simplify-error" className="font-medium text-rose-600" role="alert">
                   {errorMessage}
                 </span>
                 <span className="font-medium text-slate-400">
-                  {Array.from(inputText.trim()).length}/{MAX_CHARACTERS}
+                  {Array.from(inputText).length}/{MAX_CHARACTERS}
                 </span>
               </div>
             </div>
@@ -474,10 +709,10 @@ export function SimplifyPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center gap-2.5 rounded-full bg-blue-600 px-8 py-3.5 text-base font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg"
+              className="inline-flex items-center gap-2.5 rounded-full bg-blue-600 px-8 py-3.5 text-base font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg disabled:cursor-wait disabled:opacity-70"
             >
               <Sparkles className="h-5 w-5" aria-hidden="true" />
-              <span>Xử lý bằng AI</span>
+              <span>{isSubmitting ? 'Đang xử lý...' : 'Xử lý bằng AI'}</span>
             </button>
           </div>
         </form>
@@ -505,4 +740,3 @@ export function SimplifyPage() {
     </div>
   );
 }
-

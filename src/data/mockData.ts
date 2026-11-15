@@ -123,12 +123,12 @@ export const PRESET_LESSONS: PresetLesson[] = [
     text:
       'Chiến thắng Điện Biên Phủ năm 1954 là một mốc son chói lọi trong lịch sử đấu tranh dựng nước và giữ nước của dân tộc Việt Nam. Dưới sự lãnh đạo sáng suốt của Đảng và Chủ tịch Hồ Chí Minh, quân và dân ta đã phát huy tinh thần đoàn kết, vượt qua địa hình hiểm trở của núi rừng Tây Bắc, vận chuyển lương thực và vũ khí bằng những đoàn xe đạp thồ thô sơ để làm nên chiến thắng "lừng lẫy năm châu, chấn động địa cầu", chấm dứt ách thống trị của thực dân Pháp và mở ra kỷ nguyên độc lập, tự do.',
     simplifyResults: {
-      'de-hieu':
-        'Năm 1954, quân và dân Việt Nam đã giành được chiến thắng rất lớn ở Điện Biên Phủ.\n\nDù đường núi Tây Bắc rất khó đi, mọi người vẫn đoàn kết giúp nhau. Bộ đội và người dân đã dùng xe đạp thồ để chở gạo và đồ dùng vượt núi. Nhờ lòng dũng cảm đó, nước ta đã đánh thắng quân xâm lược và giành lại tự do.',
-      'co-ban':
-        'Chiến thắng Điện Biên Phủ năm 1954 là một sự kiện lịch sử vô cùng quan trọng của nước ta.\n\nNhờ sự chỉ huy tài tình của Bác Hồ và tinh thần đoàn kết của toàn dân, quân ta đã vượt qua núi rừng Tây Bắc hiểm trở, dùng xe đạp thồ vận chuyển lương thực để đánh bại thực dân Pháp và mang lại độc lập cho dân tộc.',
       'nang-cao':
-        'Chiến thắng Điện Biên Phủ (1954) là dấu mốc lịch sử vang dội của dân tộc Việt Nam. Dưới sự lãnh đạo của Đảng và Bác Hồ, quân dân ta phát huy sức mạnh đoàn kết, vượt qua địa hình Tây Bắc hiểm trở để tiếp tế bằng xe đạp thồ, đánh bại thực dân Pháp và mở ra thời kỳ độc lập, tự do.',
+        'Năm 1954, nhân dân ta đoàn kết dùng xe đạp thồ chở lương thực, đánh thắng giặc ở Điện Biên Phủ và giành lại độc lập.',
+      'co-ban':
+        'Năm 1954, quân và dân ta đã giành thắng lợi lớn tại Điện Biên Phủ.\n\nDù đường núi Tây Bắc gập ghềnh khó đi, mọi người vẫn đoàn kết giúp nhau chở đồ tiếp tế bằng xe đạp thồ để bảo vệ đất nước.',
+      'de-hieu':
+        'Chiến thắng Điện Biên Phủ năm 1954 là mốc son lịch sử vô cùng vẻ vang của dân tộc ta.\n\nDưới sự lãnh đạo của Bác Hồ, quân dân ta đã đoàn kết vượt qua núi đèo Tây Bắc khó đi, dùng những đoàn xe đạp thồ chở gạo và đồ dùng để đánh thắng quân xâm lược, mang lại cuộc sống tự do cho mọi người.',
     },
     extractedWords: [
       VOCABULARY_DICTIONARY[5], // Đoàn kết
@@ -147,12 +147,12 @@ export const PRESET_LESSONS: PresetLesson[] = [
     text:
       'Quang hợp là quá trình sinh hóa đặc biệt quan trọng diễn ra chủ yếu ở lá cây xanh dưới tác động của năng lượng ánh sáng mặt trời. Trong quá trình này, chất diệp lục hấp thụ quang năng để chuyển hóa nước từ rễ và khí cacbonic từ khí quyển thành chất hữu cơ nuôi sống thực vật, đồng thời giải phóng khí oxy. Nhờ đó, hệ sinh thái rừng không chỉ duy trì sự sống cho muôn loài mà còn góp phần điều hòa khí hậu và bảo vệ nguồn nước ngọt.',
     simplifyResults: {
-      'de-hieu':
-        'Quang hợp là cách cây xanh tự làm ra thức ăn để lớn lên.\n\nLá cây đón ánh nắng mặt trời, hút nước từ dưới đất qua rễ và lấy khí trong không khí. Cây biến những thứ đó thành chất dinh dưỡng nuôi thân, rồi nhả ra khí oxy sạch cho con người và động vật thở. Vì vậy, trồng nhiều cây rừng giúp không khí mát mẻ và giữ nguồn nước sạch.',
-      'co-ban':
-        'Quang hợp là quá trình cây xanh dùng ánh sáng mặt trời, nước từ rễ và khí cacbonic để tạo ra chất dinh dưỡng nuôi cây.\n\nĐồng thời, cây xanh nhả ra khí oxy rất cần cho sự sống. Nhờ vậy, rừng xanh giúp điều hòa thời tiết và bảo vệ nguồn nước cho bản làng.',
       'nang-cao':
-        'Quang hợp diễn ra ở lá xanh khi chất diệp lục sử dụng ánh sáng mặt trời để biến đổi nước và khí cacbonic thành chất hữu cơ nuôi cây, đồng thời tạo ra khí oxy. Quá trình này giúp hệ sinh thái rừng duy trì sự sống, điều hòa khí hậu và giữ gìn nguồn nước.',
+        'Quang hợp là cách lá cây đón ánh nắng mặt trời và nước để tự tạo thức ăn, rồi nhả ra khí oxy sạch cho chúng ta thở.',
+      'co-ban':
+        'Quang hợp là quá trình cây xanh dùng ánh nắng mặt trời và nước để nuôi cây lớn lên.\n\nĐồng thời, cây nhả ra khí oxy rất cần thiết cho con người và giúp rừng luôn mát mẻ.',
+      'de-hieu':
+        'Quang hợp là quá trình tự nhiên rất quan trọng diễn ra ở lá cây xanh nhờ ánh sáng mặt trời.\n\nTrong quá trình này, lá cây nhận ánh nắng để chuyển nước và khí trong không khí thành chất dinh dưỡng nuôi cây, cùng lúc đó tạo ra khí oxy sạch giúp hệ sinh thái rừng điều hòa thời tiết và duy trì sự sống cho muôn loài.',
     },
     extractedWords: [
       VOCABULARY_DICTIONARY[2], // Quang hợp
@@ -171,12 +171,12 @@ export const PRESET_LESSONS: PresetLesson[] = [
     text:
       'Trong thời đại chuyển đổi số hiện nay, việc ứng dụng công nghệ thông tin và năng lượng tái tạo vào giảng dạy tại các điểm trường vùng cao đang mở ra nhiều cơ hội tiếp cận tri thức mới cho học sinh dân tộc thiểu số. Song song với việc làm quen các thiết bị học tập hiện đại, thế hệ trẻ vẫn luôn được khuyến khích giữ gìn và bảo tồn bản sắc văn hóa truyền thống thông qua tiếng nói, trang phục thổ cẩm và các làn điệu dân ca đặc trưng của quê hương mình.',
     simplifyResults: {
-      'de-hieu':
-        'Ngày nay, công nghệ và điện mặt trời giúp các trường học ở vùng cao có thêm nhiều cách học mới rất hay.\n\nCác bạn học sinh vùng cao vừa được dùng máy tính để học kiến thức mới, vừa luôn nhớ giữ gìn tiếng nói, áo thổ cẩm và các bài hát truyền thống của dân tộc mình.',
-      'co-ban':
-        'Công nghệ và nguồn năng lượng sạch đang giúp học sinh ở vùng cao học tập thuận lợi và tiếp cận kiến thức mới dễ dàng hơn.\n\nBên cạnh việc học cùng thiết bị hiện đại, các bạn nhỏ vẫn luôn trân trọng và bảo tồn bản sắc văn hóa qua tiếng nói, trang phục thổ cẩm và dân ca quê hương.',
       'nang-cao':
-        'Ứng dụng công nghệ và năng lượng tái tạo giúp học sinh vùng cao mở rộng cơ hội học tập. Đồng thời, các em vẫn gắn bó với việc bảo tồn bản sắc văn hóa dân tộc qua ngôn ngữ, trang phục truyền thống và dân ca.',
+        'Công nghệ và điện mặt trời giúp học sinh vùng cao học tập thuận lợi, đồng thời các em luôn giữ gìn tiếng nói và áo thổ cẩm của dân tộc mình.',
+      'co-ban':
+        'Ngày nay, máy tính và năng lượng sạch giúp các trường vùng cao có thêm nhiều bài học hay.\n\nBên cạnh việc dùng thiết bị hiện đại, các bạn nhỏ vẫn luôn yêu quý và giữ gìn nét đẹp văn hóa quê hương mình.',
+      'de-hieu':
+        'Trong thời đại ngày nay, việc dùng máy tính, mạng internet và điện mặt trời vào dạy học ở vùng cao đang mở ra nhiều cơ hội học kiến thức mới cho các bạn nhỏ.\n\nCùng với việc làm quen các thiết bị hiện đại, các bạn vẫn luôn được động viên giữ gìn và bảo vệ bản sắc văn hóa qua tiếng nói, trang phục thổ cẩm và các bài dân ca của dân tộc mình.',
     },
     extractedWords: [
       VOCABULARY_DICTIONARY[0], // Công nghệ

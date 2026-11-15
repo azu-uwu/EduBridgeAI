@@ -443,7 +443,11 @@ function restoreGeminiEnv({ geminiService, origSimplify, origAiMode, origKey, or
     if (origSimplify !== undefined) {
         geminiService.simplify = origSimplify;
     }
-    process.env.AI_MODE = origAiMode;
+    if (origAiMode === undefined) {
+        delete process.env.AI_MODE;
+    } else {
+        process.env.AI_MODE = origAiMode;
+    }
     if (origKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = origKey;
     if (origModel === undefined) delete process.env.GEMINI_MODEL;
