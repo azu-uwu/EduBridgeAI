@@ -1,6 +1,8 @@
 import type {
   ApiErrorDetail,
+  DifficultWordItem,
   ExplainApiData,
+  ExplainDifficultWordsApiData,
   LanguageLevel,
   SimplifyApiData,
   SummarizeApiData,
@@ -168,6 +170,34 @@ function parseSummarizeData(
     summary: value.summary,
     keyPoints: value.keyPoints,
   };
+}
+
+function parseExplainDifficultWordsData(
+  value: unknown,
+  status: number
+): ExplainDifficultWordsApiData {
+  if (!isRecord(value) || !Array.isArray(value.words)) {
+    throw invalidResponse(status);
+  }
+
+  const words: DifficultWordItem[] = [];
+
+  for (const item of value.words) {
+    if (
+      isRecord(item) &&
+      isNonEmptyString(item.word) &&
+      isNonEmptyString(item.meaning) &&
+      isNonEmptyString(item.example)
+    ) {
+      words.push({
+        word: item.word,
+        meaning: item.meaning,
+        example: item.example,
+      });
+    }
+  }
+
+  return { words };
 }
 
 // ============================================================
@@ -348,5 +378,15 @@ export function summarize(
     "/api/summarize",
     { text },
     parseSummarizeData
+  );
+}
+
+export function explainDifficultWords(
+  text: string
+): Promise<ExplainDifficultWordsApiData> {
+  return postJson(
+    "/api/explain-difficult-words",
+    { text },
+    parseExplainDifficultWordsData
   );
 }

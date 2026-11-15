@@ -83,10 +83,8 @@ function buildDynamicSimplifiedText(
 ): string {
   let simplified = text.trim();
 
-  if (level === 'de-hieu' || level === 'co-ban') {
-    for (const [pattern, replacement] of COMPLEX_WORD_REPLACEMENTS) {
-      simplified = simplified.replace(pattern, replacement);
-    }
+  for (const [pattern, replacement] of COMPLEX_WORD_REPLACEMENTS) {
+    simplified = simplified.replace(pattern, replacement);
   }
 
   const rawSentences = simplified
@@ -94,29 +92,36 @@ function buildDynamicSimplifiedText(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  if (level === 'de-hieu') {
-    const brokenSentences = rawSentences.flatMap((sentence) => {
-      if (sentence.length > 90 && sentence.includes(',')) {
-        return sentence
-          .split(',')
-          .map((part) => part.trim())
-          .filter(Boolean)
-          .map((part) =>
-            part.endsWith('.') || part.endsWith('!') || part.endsWith('?')
-              ? part
-              : `${part.charAt(0).toUpperCase()}${part.slice(1)}.`
-          );
-      }
-      return [sentence];
+  if (level === 'nang-cao') {
+    // Đơn giản hóa tối đa = Ít chữ nhất, súc tích nhất (1-2 câu ngắn)
+    const coreSentences = rawSentences.slice(0, Math.min(2, rawSentences.length)).map((s) => {
+      const clause = s.split(',')[0].trim();
+      return /[.!?]$/.test(clause) ? clause : `${clause}.`;
     });
-    return brokenSentences.join('\n\n');
+    return coreSentences.join(' ');
   }
 
   if (level === 'co-ban') {
-    return rawSentences.join('\n\n');
+    // Đơn giản hóa vừa phải = 2-3 câu cân đối
+    return rawSentences.slice(0, Math.min(3, rawSentences.length)).join('\n\n');
   }
 
-  return rawSentences.join(' ');
+  // de-hieu: Giữ trọn vẹn ngữ cảnh với từ ngữ mộc mạc, chia dòng dễ đọc
+  const brokenSentences = rawSentences.flatMap((sentence) => {
+    if (sentence.length > 80 && sentence.includes(',')) {
+      return sentence
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) =>
+          part.endsWith('.') || part.endsWith('!') || part.endsWith('?')
+            ? part
+            : `${part.charAt(0).toUpperCase()}${part.slice(1)}.`
+        );
+    }
+    return [sentence];
+  });
+  return brokenSentences.join('\n\n');
 }
 
 function buildDynamicSummaryPoints(text: string): string[] {

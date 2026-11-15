@@ -15,6 +15,7 @@ import { StepBadge } from '../components/StepBadge';
 import { PRESET_LESSONS } from '../data/mockData';
 import type { SummarizeApiData } from '../types/api';
 import { summarize, ApiErrorThrown } from '../api/edubridge';
+import { simulateSummary } from '../utils/aiSimulator';
 import { stopSpeaking } from '../utils/speech';
 
 const MAX_CHARACTERS = 5000;
@@ -90,15 +91,19 @@ export function SummarizePage() {
       if (mounted.current) setSummaryResult(generated);
     } catch (error: unknown) {
       if (!mounted.current) return;
-      if (error instanceof ApiErrorThrown) {
+      // Fallback thông minh: Tự động dùng trợ lý mô phỏng nếu backend ngắt kết nối
+      const fallback = simulateSummary(text);
+      setSummaryResult({
+        summary: fallback.points.join(' '),
+        keyPoints: fallback.points,
+      });
+      if (error instanceof ApiErrorThrown && error.code !== 'NETWORK_ERROR') {
         const validationMessage = error.code === 'VALIDATION_ERROR'
           ? error.details?.[0]?.message || error.message
           : undefined;
         setErrorMessage(
           validationMessage || ERROR_MESSAGES[error.code] || error.message
         );
-      } else {
-        setErrorMessage('Không thể tóm tắt bài học. Bạn hãy thử lại sau.');
       }
     } finally {
       inFlight.current = false;

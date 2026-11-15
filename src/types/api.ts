@@ -47,7 +47,18 @@ export interface SummarizeApiData {
   keyPoints: string[];
 }
 
+export interface DifficultWordItem {
+  word: string;
+  meaning: string;
+  example: string;
+}
+
+export interface ExplainDifficultWordsApiData {
+  words: DifficultWordItem[];
+}
+
 export type ApiData =
   | SimplifyApiData
   | ExplainApiData
-  | SummarizeApiData;
+  | SummarizeApiData
+  | ExplainDifficultWordsApiData;

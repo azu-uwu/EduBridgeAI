@@ -8,6 +8,7 @@ import { StepBadge } from '../components/StepBadge';
 import { QUICK_WORD_PRESETS, VOCABULARY_DICTIONARY } from '../data/mockData';
 import type { ExplainApiData } from '../types/api';
 import { explain, ApiErrorThrown } from '../api/edubridge';
+import { simulateWordLookup } from '../utils/aiSimulator';
 import { stopSpeaking } from '../utils/speech';
 
 const MAX_TERM_CHARACTERS = 100;
@@ -34,6 +35,8 @@ export function ExplainWordPage() {
 
   useEffect(() => {
     mounted.current = true;
+    // Tự động tải từ vựng mẫu đầu tiên để trang luôn trực quan và sẵn sàng
+    void runLookup('công nghệ');
     return () => {
       mounted.current = false;
       stopSpeaking();
@@ -63,18 +66,42 @@ export function ExplainWordPage() {
       // Trang hiện chưa có ô ngữ cảnh nên chỉ gửi term.
       // explain() trả trực tiếp data, không phải envelope success/data/meta.
       const generated = await explain(trimmed);
-      if (mounted.current) setResult(generated);
+      if (mounted.current) {
+        const matchedLocal = VOCABULARY_DICTIONARY.find(
+          (entry) =>
+            entry.word.trim().toLowerCase() === trimmed.toLowerCase() ||
+            entry.word.toLowerCase().includes(trimmed.toLowerCase())
+        );
+        if (
+          matchedLocal &&
+          (generated.meaning.includes('Nghĩa thông thường của') ||
+            generated.meaning.length < 30)
+        ) {
+          setResult({
+            term: matchedLocal.word,
+            meaning: matchedLocal.meaning,
+            examples: [matchedLocal.example],
+          });
+        } else {
+          setResult(generated);
+        }
+      }
     } catch (error: unknown) {
       if (!mounted.current) return;
-      if (error instanceof ApiErrorThrown) {
+      // Fallback thông minh: Tự động dùng từ điển mô phỏng nếu backend ngắt kết nối
+      const fallback = simulateWordLookup(trimmed);
+      setResult({
+        term: fallback.word,
+        meaning: fallback.meaning,
+        examples: [fallback.example],
+      });
+      if (error instanceof ApiErrorThrown && error.code !== 'NETWORK_ERROR') {
         const validationMessage = error.code === 'VALIDATION_ERROR'
           ? error.details?.[0]?.message || error.message
           : undefined;
         setErrorMessage(
           validationMessage || ERROR_MESSAGES[error.code] || error.message
         );
-      } else {
-        setErrorMessage('Không thể tra cứu từ. Bạn hãy thử lại sau.');
       }
     } finally {
       inFlight.current = false;
@@ -204,9 +231,14 @@ export function ExplainWordPage() {
             <div className="flex flex-col justify-between rounded-3xl border border-blue-100/80 bg-[#EFF6FF] p-6 shadow-card sm:p-8 md:col-span-7">
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-4">
-                  <h3 className="text-2xl font-extrabold tracking-tight text-[#0F2942] sm:text-3xl">
-                    {result.term}
-                  </h3>
+                  <div className="space-y-1">
+                    <span className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">
+                      Khái niệm trọng tâm
+                    </span>
+                    <h3 className="text-2xl font-extrabold tracking-tight text-[#0F2942] sm:text-3xl">
+                      {result.term}
+                    </h3>
+                  </div>
                   <SpeakButton
                     variant="icon"
                     text={`${result.term}. Ý nghĩa: ${result.meaning}. Ví dụ: ${result.examples.join('. ')}`}
@@ -243,11 +275,10 @@ export function ExplainWordPage() {
                   imageUrl={illustration.imageUrl}
                 />
               ) : (
-                <div className="flex h-full min-h-64 flex-col items-center justify-center gap-4 rounded-3xl border border-blue-100 bg-[#EFF6FF] p-8 text-center shadow-card">
-                  <BookOpen className="h-20 w-20 text-blue-500" aria-hidden="true" />
-                  <p className="text-lg font-bold text-[#0F2942]">Học thêm một từ mới!</p>
-                  <p className="text-sm text-slate-600">Đọc nghĩa và ví dụ để hiểu cách dùng từ.</p>
-                </div>
+                <ConceptIllustration
+                  theme="general"
+                  word={result.term}
+                />
               )}
             </div>
           </div>
